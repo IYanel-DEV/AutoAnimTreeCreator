@@ -15,24 +15,21 @@ var is_falling: bool = false
 
 # Available states - WILL BE AUTO-GENERATED
 var available_states = [
-	#ANIMATION_STATES#
+#ANIMATION_STATES#
 ]
 
 func _ready():
 	if animation_tree:
 		animation_tree.active = true
-		# Start with idle animation if available
 		if "idle" in available_states:
 			state_machine.start("idle")
 		elif available_states.size() > 0:
 			state_machine.start(available_states[0])
 
 func _physics_process(delta):
-	# Handle movement and physics
 	_handle_movement(delta)
 	_handle_gravity(delta)
 	_handle_jump()
-	
 	move_and_slide()
 	_update_animations()
 
@@ -68,13 +65,11 @@ func _update_animations():
 	if not state_machine:
 		return
 	
-	# Update animation states based on character state
 	if is_jumping and "jump" in available_states:
 		state_machine.travel("jump")
 	elif is_falling and "fall" in available_states:
 		state_machine.travel("fall")
 	elif is_moving:
-		# Handle directional animations or default to walk/run
 		if "blend_space" in available_states:
 			state_machine.travel("blend_space")
 		elif "walk" in available_states:
@@ -85,12 +80,5 @@ func _update_animations():
 		if "idle" in available_states:
 			state_machine.travel("idle")
 
-# Input actions setup reminder
 func _input(event):
-	# Remember to set up these input actions in Project Settings:
-	# - move_left (A/Left Arrow)
-	# - move_right (D/Right Arrow) 
-	# - move_forward (W/Up Arrow)
-	# - move_back (S/Down Arrow)
-	# - jump (Space)
 	pass

@@ -9,7 +9,6 @@ var anim_options: Dictionary = {}
 var create_btn: Button
 
 func _enter_tree():
-	# Create toolbar button
 	create_button = Button.new()
 	create_button.text = "Auto AnimTree"
 	create_button.pressed.connect(_on_create_button_pressed)
