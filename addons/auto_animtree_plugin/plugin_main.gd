@@ -7,6 +7,8 @@ var scene_file_edit: OptionButton
 var anim_player_edit: OptionButton
 var anim_options: Dictionary = {}
 var create_btn: Button
+var auto_bind_btn: Button
+var scroll_container: ScrollContainer
 
 func _enter_tree():
 	create_button = Button.new()
@@ -28,26 +30,50 @@ func _exit_tree():
 
 func _on_create_button_pressed():
 	_create_dialog()
-	dialog.popup_centered(Vector2i(600, 800))
+	dialog.popup_centered(Vector2i(700, 900))
 
 func _create_dialog():
+	if dialog and is_instance_valid(dialog):
+		dialog.queue_free()
+		
 	dialog = Window.new()
 	dialog.title = "Auto AnimationTree Creator"
-	dialog.size = Vector2i(600, 800)
-	dialog.min_size = Vector2i(550, 700)
+	dialog.size = Vector2i(700, 900)
+	dialog.min_size = Vector2i(650, 800)
 	dialog.close_requested.connect(_on_dialog_close)
 	
-	var vbox = VBoxContainer.new()
-	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	dialog.add_child(vbox)
+	# Main container
+	var main_vbox = VBoxContainer.new()
+	main_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	main_vbox.add_theme_constant_override("separation", 10)
+	dialog.add_child(main_vbox)
 	
-	# Scene selection
+	# Title
+	var title_label = Label.new()
+	title_label.text = "Auto AnimationTree Creator"
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.add_theme_font_size_override("font_size", 18)
+	main_vbox.add_child(title_label)
+	
+	main_vbox.add_child(HSeparator.new())
+	
+	# Scene selection group
+	var scene_group = VBoxContainer.new()
+	scene_group.add_theme_constant_override("separation", 5)
+	main_vbox.add_child(scene_group)
+	
+	var scene_title = Label.new()
+	scene_title.text = "═══ Scene Selection ═══"
+	scene_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	scene_title.add_theme_font_size_override("font_size", 14)
+	scene_group.add_child(scene_title)
+	
 	var scene_hbox = HBoxContainer.new()
-	vbox.add_child(scene_hbox)
+	scene_group.add_child(scene_hbox)
 	
 	var scene_label = Label.new()
 	scene_label.text = "Player Scene:"
+	scene_label.custom_minimum_size.x = 120
 	scene_hbox.add_child(scene_label)
 	
 	scene_file_edit = OptionButton.new()
@@ -62,10 +88,11 @@ func _create_dialog():
 	
 	# AnimationPlayer selection
 	var anim_player_hbox = HBoxContainer.new()
-	vbox.add_child(anim_player_hbox)
+	scene_group.add_child(anim_player_hbox)
 	
 	var anim_player_label = Label.new()
 	anim_player_label.text = "AnimationPlayer:"
+	anim_player_label.custom_minimum_size.x = 120
 	anim_player_hbox.add_child(anim_player_label)
 	
 	anim_player_edit = OptionButton.new()
@@ -74,54 +101,169 @@ func _create_dialog():
 	anim_player_edit.item_selected.connect(_on_anim_player_selected)
 	anim_player_hbox.add_child(anim_player_edit)
 	
-	# Animation selection grid
-	var anim_grid = GridContainer.new()
-	anim_grid.columns = 2
-	anim_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_child(anim_grid)
+	main_vbox.add_child(HSeparator.new())
 	
-	var animations = {
-		"idle": "Idle Animation",
-		"walk_forward": "Walk Forward",
-		"walk_backward": "Walk Backward", 
-		"walk_left": "Walk Left",
-		"walk_right": "Walk Right",
-		"run_forward": "Run Forward",
-		"run_backward": "Run Backward",
-		"jump": "Jump Animation",
-		"fall": "Fall Animation"
-	}
+	# Auto Bind Section
+	var auto_bind_group = VBoxContainer.new()
+	auto_bind_group.add_theme_constant_override("separation", 5)
+	main_vbox.add_child(auto_bind_group)
 	
-	anim_options = {}
+	var auto_bind_title = Label.new()
+	auto_bind_title.text = "═══ Input Actions ═══"
+	auto_bind_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	auto_bind_title.add_theme_font_size_override("font_size", 14)
+	auto_bind_group.add_child(auto_bind_title)
 	
-	for anim_name in animations:
-		var label = Label.new()
-		label.text = animations[anim_name] + ":"
-		anim_grid.add_child(label)
-		
-		var option = OptionButton.new()
-		option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		option.add_item("None", 0)
-		option.disabled = true
-		anim_grid.add_child(option)
-		anim_options[anim_name] = option
+	auto_bind_btn = Button.new()
+	auto_bind_btn.text = "Auto Generate Input Actions"
+	auto_bind_btn.pressed.connect(_on_auto_bind_pressed)
+	auto_bind_group.add_child(auto_bind_btn)
 	
-	# Separator
-	var separator = HSeparator.new()
-	vbox.add_child(separator)
+	var info_label = Label.new()
+	info_label.text = "Creates: move_left, move_right, move_forward, move_back, jump, run, crouch, attack, block, dodge
+	IMPORTANT: After generating the input action, please save everything and reload the project so the input will be applied."
+	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_label.add_theme_font_size_override("font_size", 18)
+	auto_bind_group.add_child(info_label)
+	
+	main_vbox.add_child(HSeparator.new())
+	
+	# Animation Selection Section
+	var anim_title = Label.new()
+	anim_title.text = "═══ Animation Selection ═══"
+	anim_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	anim_title.add_theme_font_size_override("font_size", 14)
+	main_vbox.add_child(anim_title)
+	
+	# Scroll container for animations
+	scroll_container = ScrollContainer.new()
+	scroll_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main_vbox.add_child(scroll_container)
+	
+	var scroll_vbox = VBoxContainer.new()
+	scroll_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_container.add_child(scroll_vbox)
+	
+	# Create animation categories
+	_create_animation_categories(scroll_vbox)
+	
+	main_vbox.add_child(HSeparator.new())
 	
 	# Create button
 	create_btn = Button.new()
 	create_btn.text = "Create AnimationTree & Controller"
 	create_btn.pressed.connect(_create_animation_system)
 	create_btn.disabled = true
-	vbox.add_child(create_btn)
+	create_btn.custom_minimum_size.y = 40
+	main_vbox.add_child(create_btn)
 	
+	# Add to editor after everything is set up
 	get_editor_interface().get_base_control().add_child(dialog)
 	_refresh_scene_files()
 
+func _create_animation_categories(parent: VBoxContainer):
+	anim_options = {}
+	
+	var categories = {
+		"Basic States": {
+			"idle": "Idle Animation"
+		},
+		"Walking": {
+			"walk_forward": "Walk Forward",
+			"walk_backward": "Walk Backward", 
+			"walk_left": "Walk Left",
+			"walk_right": "Walk Right"
+		},
+		"Running": {
+			"run_forward": "Run Forward",
+			"run_backward": "Run Backward",
+			"run_left": "Run Left",
+			"run_right": "Run Right"
+		},
+		"Crouching": {
+			"crouch_idle": "Crouch Idle",
+			"crouch_forward": "Crouch Forward",
+			"crouch_backward": "Crouch Backward",
+			"crouch_left": "Crouch Left",
+			"crouch_right": "Crouch Right"
+		},
+		"Aerial": {
+			"jump": "Jump Animation",
+			"fall": "Fall Animation",
+			"land": "Land Animation"
+		},
+		"Combat": {
+			"attack_1": "Attack 1",
+			"attack_2": "Attack 2",
+			"attack_3": "Attack 3",
+			"block": "Block",
+			"dodge": "Dodge"
+		},
+		"Special": {
+			"climb": "Climb Animation",
+			"swim": "Swim Animation",
+			"slide": "Slide Animation"
+		}
+	}
+	
+	for category_name in categories:
+		var category_data = categories[category_name]
+		
+		# Category container
+		var category_container = VBoxContainer.new()
+		category_container.add_theme_constant_override("separation", 5)
+		parent.add_child(category_container)
+		
+		# Category header
+		var category_header = HBoxContainer.new()
+		category_container.add_child(category_header)
+		
+		var category_label = Label.new()
+		category_label.text = "▼ " + category_name
+		category_label.add_theme_font_size_override("font_size", 12)
+		category_label.modulate = Color.CYAN
+		category_header.add_child(category_label)
+		
+		var separator = HSeparator.new()
+		separator.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		category_header.add_child(separator)
+		
+		# Animation grid for this category
+		var anim_grid = GridContainer.new()
+		anim_grid.columns = 2
+		anim_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		anim_grid.add_theme_constant_override("h_separation", 10)
+		anim_grid.add_theme_constant_override("v_separation", 5)
+		category_container.add_child(anim_grid)
+		
+		# Add animations for this category
+		for anim_name in category_data:
+			var label = Label.new()
+			label.text = category_data[anim_name] + ":"
+			label.custom_minimum_size.x = 150
+			anim_grid.add_child(label)
+			
+			var option = OptionButton.new()
+			option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			option.add_item("None", 0)
+			option.disabled = true
+			anim_grid.add_child(option)
+			anim_options[anim_name] = option
+		
+		# Add spacing between categories
+		var spacer = Control.new()
+		spacer.custom_minimum_size.y = 15
+		parent.add_child(spacer)
+
 func _on_dialog_close():
-	dialog.hide()
+	if dialog:
+		dialog.hide()
+
+func _on_auto_bind_pressed():
+	var animation_system = AnimationSystem.new()
+	animation_system.editor_interface = get_editor_interface()
+	animation_system.auto_bind_input_actions()
 
 func _refresh_scene_files():
 	scene_file_edit.clear()
@@ -247,9 +389,11 @@ func _create_animation_system():
 	
 	# Use AnimationSystem class to handle the creation
 	var animation_system = AnimationSystem.new()
+	animation_system.editor_interface = get_editor_interface()
 	animation_system.create_animation_system(scene_path, anim_options, anim_player_path)
 	
-	dialog.hide()
+	if dialog:
+		dialog.hide()
 
 func _find_scene_files(path: String, files: Array = []) -> Array:
 	var dir = DirAccess.open(path)
