@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://bbjc7yyvs33gb"]
+[gd_scene load_steps=2 format=3 uid="uid://d2kl2ags5yxd3"]
 
 [sub_resource type="GDScript" id="GDScript_awutx"]
 script/source = "@tool
@@ -508,7 +508,7 @@ func _physics_process(delta):
 
 [node name="AutoAnimTreeDialog" type="Window"]
 title = "Auto AnimationTree Creator"
-position = Vector2i(15, 40)
+position = Vector2i(15, 36)
 size = Vector2i(500, 600)
 min_size = Vector2i(450, 550)
 script = SubResource("GDScript_awutx")
