@@ -1,2 +1,11 @@
 # Normalize EOL for all files that Git considers text files.
 * text=auto eol=lf
+
+
+# Ignore everything by default when exporting ZIP
+* export-ignore
+
+# Keep addons folder when exporting
+!addons/
+!addons/**
+
