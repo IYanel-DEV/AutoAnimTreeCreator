@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 ![Version](https://img.shields.io/badge/Version-1.0-orange?style=for-the-badge)
 
-<img width="737" height="922" alt="image" src="https://github.com/user-attachments/assets/54e01525-4d2c-46ac-83e2-44574a2ef25d" />
+<img width="400" height="400" alt="image" src="https://github.com/user-attachments/assets/54e01525-4d2c-46ac-83e2-44574a2ef25d" />
 
 
 **Automatically generate complex AnimationTree state machines with zero coding required!**
