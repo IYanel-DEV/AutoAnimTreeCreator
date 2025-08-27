@@ -228,8 +228,8 @@ We welcome contributions! Here's how you can help:
 
 ### Development Setup
 ```bash
-git clone https://github.com/yourusername/auto-animtree-creator.git
-cd auto-animtree-creator
+git clone https://github.com/IYanel-DEV/AutoAnimTreeCreator.git
+cd AutoAnimTreeCreator
 # Open in Godot and enable plugin
 ```
 
