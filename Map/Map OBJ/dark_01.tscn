@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://cn13pk5kwsiva"]
+
+[ext_resource type="Texture2D" uid="uid://bjki20y2o2s7c" path="res://Map/Map OBJ/texture_01.png" id="1_c2jwn"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_c2jwn"]
+albedo_texture = ExtResource("1_c2jwn")
+
+[node name="Cube" type="Node3D"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.5, 0.5)
+material_override = SubResource("StandardMaterial3D_c2jwn")
+use_collision = true

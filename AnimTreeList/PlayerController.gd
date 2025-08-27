@@ -1,7 +1,14 @@
 extends CharacterBody3D
 
-@onready var animation_tree: AnimationTree = $AuxScene/AnimationTree
+@onready var animation_tree: AnimationTree = $THREEDMODEL/AnimationTree
 @onready var state_machine = animation_tree.get("parameters/playback")
+
+
+@onready var camera: Camera3D = $THREEDMODEL/Node/Skeleton3D/BoneAttachment3D/Camera3D  # Make sure you have a Camera3D node as a child
+var mouse_sensitivity: float = 0.002
+var vertical_look_limit: float = 90.0  # Degrees
+var mouse_captured: bool = false
+
 
 # Movement parameters
 var speed: float = 5.0
@@ -27,11 +34,21 @@ var available_states = [
 	"walk_left",
 	"walk_right",
 	"run_forward",
+	"run_backward",
+	"run_left",
+	"run_right",
+	"crouch_idle",
+	"crouch_forward",
+	"crouch_backward",
+	"crouch_left",
+	"crouch_right",
 	"jump",
 	"fall",
 	"land",
+	"slide",
 	"walk_blend_space",
 	"run_blend_space",
+	"crouch_blend_space",
 
 ]
 
@@ -42,6 +59,16 @@ var dodge_timer: float = 0.0
 var dodge_duration: float = 0.3
 
 func _ready():
+		# Add this to your existing _ready() function
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	mouse_captured = true
+	
+	# Make sure you have a Camera3D node
+	if not camera:
+		# Try to find any Camera3D in children
+		camera = find_child("Camera3D")
+		if not camera:
+			push_error("No Camera3D node found for first-person controller!")
 	if animation_tree:
 		animation_tree.active = true
 		# Start with idle if available, otherwise use first available state
@@ -101,7 +128,7 @@ func _handle_movement(delta):
 		is_moving = false
 		return
 	
-	var input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var input_dir = Input.get_vector("move_right", "move_left", "move_back", "move_forward")
 	var direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	
 	# Calculate current speed based on state
@@ -268,7 +295,46 @@ func _input(event):
 			KEY_3:
 				if "attack_3" in available_states:
 					_force_play_animation("attack_3")
+	# Handle any additional input events here
+	if event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_1:
+				if "attack_1" in available_states:
+					_force_play_animation("attack_1")
+			KEY_2:
+				if "attack_2" in available_states:
+					_force_play_animation("attack_2")
+			KEY_3:
+				if "attack_3" in available_states:
+					_force_play_animation("attack_3")
+			KEY_ESCAPE:
+				# Toggle mouse capture
+				if mouse_captured:
+					Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+					mouse_captured = false
+				else:
+					Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+					mouse_captured = true
+	
+	# Handle mouse look
+	if event is InputEventMouseMotion and mouse_captured:
+		_handle_mouse_look(event)
 
+func _handle_mouse_look(event: InputEventMouseMotion):
+	# Horizontal rotation - rotate the entire character
+	rotate_y(-event.relative.x * mouse_sensitivity)
+	
+	# Vertical rotation - only rotate the camera
+	if camera:
+		var current_tilt = camera.rotation.x
+		var new_tilt = current_tilt - event.relative.y * mouse_sensitivity
+		
+		# Clamp the vertical rotation to prevent over-rotation
+		new_tilt = clamp(new_tilt, 
+			deg_to_rad(-vertical_look_limit), 
+			deg_to_rad(vertical_look_limit))
+		
+		camera.rotation.x = new_tilt
 # Helper functions
 func has_animation_state(state_name: String) -> bool:
 	return state_name in available_states
