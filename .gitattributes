@@ -12,6 +12,11 @@
 /icon.png export-ignore
 /icon.png.import export-ignore
 /project.godot export-ignore
+/icon.svg export-ignore
+/icon.svg.import export-ignore
+/Map export-ignore
+/Player export-ignore
+/AnimTreeList export-ignore
 
 # Only include the addons folder and its contents
 !/addons export-ignore
