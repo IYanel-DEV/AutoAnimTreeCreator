@@ -1,2 +1,23 @@
-# Normalize EOL for all files that Git considers text files.
+# Normalize EOL for all files that Git considers text files
 * text=auto eol=lf
+
+# Export-ignore patterns - these files/folders won't be included in archive downloads
+/.editorconfig export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/LICENSE export-ignore
+/README.md export-ignore
+/Preview.png export-ignore
+/Preview.png.import export-ignore
+/icon.png export-ignore
+/icon.png.import export-ignore
+/project.godot export-ignore
+/icon.svg export-ignore
+/icon.svg.import export-ignore
+/Map export-ignore
+/Player export-ignore
+/AnimTreeList export-ignore
+
+# Only include the addons folder and its contents
+!/addons export-ignore
+!/addons/** export-ignore
