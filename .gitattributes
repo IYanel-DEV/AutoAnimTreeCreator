@@ -2,10 +2,8 @@
 * text=auto eol=lf
 
 
-# Ignore everything by default when exporting ZIP
+# Keep only addons folder when exporting (Download ZIP)
 * export-ignore
 
-# Keep addons folder when exporting
-!addons/
-!addons/**
-
+# Allow addons folder and everything inside
+addons/** !export-ignore
