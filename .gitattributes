@@ -18,6 +18,10 @@
 /Player export-ignore
 /AnimTreeList export-ignore
 
+# GameManager (local spawner, not part of the plugin)
+/GameManager.gd export-ignore
+/GameManager.gd.uid export-ignore
+
 # Only include the addons folder and its contents
 !/addons export-ignore
 !/addons/** export-ignore
