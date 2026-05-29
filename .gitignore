@@ -1,3 +1,7 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# GameManager removed from project
+GameManager.gd
+GameManager.gd.uid
