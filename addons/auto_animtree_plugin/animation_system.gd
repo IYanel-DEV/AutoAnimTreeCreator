@@ -1,9 +1,32 @@
 @tool
 class_name AnimationSystem
+##
+## Core engine that builds the AnimationTree state machine, blend spaces,
+## transitions, and generates the PlayerController script.
+##
+## Flow:
+##  1. Load the target scene and locate the AnimationPlayer
+##  2. Scan available animations from the AnimationPlayer
+##  3. Create AnimationNodeStateMachine with organised state nodes
+##  4. Add smart transitions between related animation groups
+##  5. Set up aerial transitions (jump→fall→land) with proper advance modes
+##  6. Create blend spaces (walk / run / crouch) when directional anims exist
+##  7. Generate PlayerController.gd from the template by injecting state lists
+##
+## Usage (called from plugin_main.gd):
+##  [codeblock]
+##  var system = AnimationSystem.new()
+##  system.editor_interface = get_editor_interface()
+##  system.create_animation_system(scene_path, anim_options, anim_player_path)
+##  [/codeblock]
 
 var editor_interface: EditorInterface
 
 func create_animation_system(scene_path: String, anim_options: Dictionary, selected_anim_player_path: String):
+	## Entry point. Builds the entire animation system and saves the scene.
+	## [param scene_path] — path to the .tscn to modify
+	## [param anim_options] — dict of anim_type → OptionButton for selecting which anim clips to use
+	## [param selected_anim_player_path] — node path to the AnimationPlayer in the scene
 	var scene = load(scene_path)
 	
 	if not scene or not scene is PackedScene:
@@ -36,12 +59,18 @@ func create_animation_system(scene_path: String, anim_options: Dictionary, selec
 		scene_instance.queue_free()
 		return
 	
+	# Remove existing AnimationTree if present (prevents duplicates)
+	var anim_player_parent = anim_player.get_parent()
+	for child in anim_player_parent.get_children():
+		if child is AnimationTree:
+			anim_player_parent.remove_child(child)
+			child.queue_free()
+	
 	# Create AnimationTree as sibling of AnimationPlayer
 	var anim_tree = AnimationTree.new()
 	anim_tree.name = "AnimationTree"
 	
 	# Add AnimationTree as sibling to AnimationPlayer
-	var anim_player_parent = anim_player.get_parent()
 	anim_player_parent.add_child(anim_tree)
 	anim_tree.owner = scene_instance
 	
@@ -74,6 +103,9 @@ func create_animation_system(scene_path: String, anim_options: Dictionary, selec
 	# Create smart transitions between related states
 	_create_smart_transitions(state_machine, selected_anims, state_names)
 	
+	# Setup proper aerial transitions (jump->fall->land chain with correct advance modes)
+	_setup_aerial_transitions(state_machine, selected_anims)
+	
 	# Create blend spaces for directional movement if needed
 	_create_movement_blend_spaces(state_machine, selected_anims)
 	
@@ -102,7 +134,9 @@ func create_animation_system(scene_path: String, anim_options: Dictionary, selec
 	_force_editor_refresh(scene_path)
 
 func _create_organized_states(state_machine: AnimationNodeStateMachine, selected_anims: Dictionary):
-	# Organize animations by category for positioning
+	## Place animation state nodes into the state machine, grouped by category
+	## (basic, walking, running, crouching, aerial, combat, special) with visual
+	## vertical spacing so the graph is readable in the AnimationTree editor.
 	var categories = {
 		"basic": ["idle"],
 		"walking": ["walk_forward", "walk_backward", "walk_left", "walk_right"],
@@ -138,7 +172,8 @@ func _create_organized_states(state_machine: AnimationNodeStateMachine, selected
 			current_category_position += category_offset
 
 func _determine_start_node(selected_anims: Dictionary) -> String:
-	# Priority for start node
+	## Pick which animation node the state machine should start on.
+	## Priority: idle → crouch_idle → walk_forward → run_forward → first available.
 	var priority_nodes = ["idle", "crouch_idle", "walk_forward", "run_forward"]
 	
 	for node_name in priority_nodes:
@@ -152,7 +187,9 @@ func _determine_start_node(selected_anims: Dictionary) -> String:
 	return ""
 
 func _create_smart_transitions(state_machine: AnimationNodeStateMachine, selected_anims: Dictionary, state_names: Array):
-	# Define transition groups - animations that should transition to each other
+	## Wire up transitions between animations within the same group (e.g. all walk
+	## directions cross-fade to each other, idle connects to crouch_idle, etc.).
+	## Uses different crossfade durations: instant (0.0s), normal (0.2s), slow (0.5s).
 	var transition_groups = [
 		# Basic locomotion
 		["idle", "walk_forward", "walk_backward", "walk_left", "walk_right"],
@@ -162,10 +199,7 @@ func _create_smart_transitions(state_machine: AnimationNodeStateMachine, selecte
 		["crouch_idle", "crouch_forward", "crouch_backward", "crouch_left", "crouch_right"],
 		["idle", "crouch_idle"],  # Transition between standing and crouching
 		
-		# Aerial
-		["idle", "jump", "fall", "land"],
-		["walk_forward", "jump"],
-		["run_forward", "jump"],
+		# Aerial - handled entirely by _setup_aerial_transitions to prevent auto-advance conflicts
 		
 		# Combat
 		["idle", "attack_1", "attack_2", "attack_3", "block", "dodge"],
@@ -203,7 +237,8 @@ func _create_smart_transitions(state_machine: AnimationNodeStateMachine, selecte
 						state_machine.add_transition(from_state, to_state, transition)
 
 func _is_instant_transition(from_state: String, to_state: String) -> bool:
-	# Instant transitions (no crossfade)
+	## Returns true if the pair should crossfade instantly (0.0s).
+	## Used for idle/walk/run → jump so the jump kicks in without delay.
 	var instant_pairs = [
 		["idle", "jump"],
 		["walk_forward", "jump"],
@@ -217,7 +252,8 @@ func _is_instant_transition(from_state: String, to_state: String) -> bool:
 	return false
 
 func _is_slow_transition(from_state: String, to_state: String) -> bool:
-	# Slow transitions (longer crossfade)
+	## Returns true if the pair should use a longer crossfade (0.5s).
+	## Used for posture changes like idle ↔ crouch_idle.
 	var slow_pairs = [
 		["idle", "crouch_idle"],
 		["crouch_idle", "idle"]
@@ -229,8 +265,59 @@ func _is_slow_transition(from_state: String, to_state: String) -> bool:
 	
 	return false
 
+func _setup_aerial_transitions(state_machine: AnimationNodeStateMachine, selected_anims: Dictionary):
+	## Configure jump/fall/land transitions with correct advance modes so the
+	## controller script can control the timing (jump protection timer, landing
+	## detection) instead of relying on auto-advance.
+	##
+	## - jump → fall: manual (triggered when jump_protection expires)
+	## - fall → land: manual (triggered by ground contact)
+	## - land → idle: auto (waits for land animation to finish)
+	
+	# IDLE -> JUMP etc: Instant transition for initiating jump
+	if "jump" in selected_anims:
+		for from_state in ["idle", "walk_forward", "run_forward"]:
+			if from_state in selected_anims and not state_machine.has_transition(from_state, "jump"):
+				var to_jump = AnimationNodeStateMachineTransition.new()
+				to_jump.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO
+				to_jump.auto_advance_time = 0.0
+				to_jump.xfade_time = 0.0
+				state_machine.add_transition(from_state, "jump", to_jump)
+	
+	# JUMP -> FALL: manual - controller handles timing via jump_protection_timer
+	if "jump" in selected_anims and "fall" in selected_anims:
+		var jump_to_fall = AnimationNodeStateMachineTransition.new()
+		jump_to_fall.advance_mode = 1  # ADVANCE_MODE_ENABLED (manual)
+		jump_to_fall.xfade_time = 0.05
+		state_machine.add_transition("jump", "fall", jump_to_fall)
+	
+	# FALL -> LAND: Manual control (triggered by ground detection)
+	if "fall" in selected_anims and "land" in selected_anims:
+		var fall_to_land = AnimationNodeStateMachineTransition.new()
+		fall_to_land.advance_mode = 1  # ADVANCE_MODE_MANUAL
+		fall_to_land.xfade_time = 0.05
+		state_machine.add_transition("fall", "land", fall_to_land)
+	
+	# LAND -> IDLE: Wait for land animation to finish
+	if "land" in selected_anims:
+		var land_to_idle = AnimationNodeStateMachineTransition.new()
+		land_to_idle.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO
+		land_to_idle.auto_advance_time = 0.0
+		land_to_idle.xfade_time = 0.1
+		
+		if "idle" in selected_anims:
+			state_machine.add_transition("land", "idle", land_to_idle)
+		elif "crouch_idle" in selected_anims:
+			state_machine.add_transition("land", "crouch_idle", land_to_idle)
+
 func _create_movement_blend_spaces(state_machine: AnimationNodeStateMachine, selected_anims: Dictionary):
-	# Create blend space for walking if we have directional walk animations
+	## Create AnimationNodeBlendSpace2D nodes for walk, run, and crouch when
+	## directional animations are available. Each blend space maps a Vector2
+	## input (from the controller script) to the appropriate directional clip.
+	##
+	## Point mapping:
+	##   forward = (0, -1), backward = (0, 1)
+	##   left    = (-1, 0), right   = (1, 0)
 	var walk_anims = ["walk_forward", "walk_backward", "walk_left", "walk_right"]
 	var has_walk_anims = false
 	for anim in walk_anims:
@@ -264,6 +351,7 @@ func _create_movement_blend_spaces(state_machine: AnimationNodeStateMachine, sel
 		_create_crouch_blend_space(state_machine, selected_anims)
 
 func _create_walk_blend_space(state_machine: AnimationNodeStateMachine, selected_anims: Dictionary):
+	## Build the walk blend space and connect it to idle.
 	var blend_space = AnimationNodeBlendSpace2D.new()
 	blend_space.blend_mode = AnimationNodeBlendSpace2D.BLEND_MODE_INTERPOLATED
 	
@@ -294,6 +382,7 @@ func _create_walk_blend_space(state_machine: AnimationNodeStateMachine, selected
 		state_machine.add_transition("walk_blend_space", "idle", from_walk)
 
 func _create_run_blend_space(state_machine: AnimationNodeStateMachine, selected_anims: Dictionary):
+	## Build the run blend space and connect it to idle.
 	var blend_space = AnimationNodeBlendSpace2D.new()
 	blend_space.blend_mode = AnimationNodeBlendSpace2D.BLEND_MODE_INTERPOLATED
 	
@@ -324,6 +413,7 @@ func _create_run_blend_space(state_machine: AnimationNodeStateMachine, selected_
 		state_machine.add_transition("run_blend_space", "idle", from_run)
 
 func _create_crouch_blend_space(state_machine: AnimationNodeStateMachine, selected_anims: Dictionary):
+	## Build the crouch blend space and connect it to crouch_idle.
 	var blend_space = AnimationNodeBlendSpace2D.new()
 	blend_space.blend_mode = AnimationNodeBlendSpace2D.BLEND_MODE_INTERPOLATED
 	
@@ -354,7 +444,9 @@ func _create_crouch_blend_space(state_machine: AnimationNodeStateMachine, select
 		state_machine.add_transition("crouch_blend_space", "crouch_idle", from_crouch_move)
 
 func auto_bind_input_actions():
-	"""Create input map actions for movement controls that appear in Project Settings"""
+	## Register default input actions (move_left, move_right, etc.) in the
+	## Project Settings Input Map so they appear immediately and can be
+	## remapped by the user. Does not overwrite existing actions.
 	var actions_to_create = {
 		"move_left": [KEY_A, KEY_LEFT],
 		"move_right": [KEY_D, KEY_RIGHT], 
@@ -408,7 +500,9 @@ func auto_bind_input_actions():
 		editor_interface.get_resource_filesystem().scan()
 
 func _create_player_controller_script(anims: Dictionary, anim_player_name: String, anim_tree_name: String, states: Array):
-	# Template path and destination path
+	## Generate PlayerController.gd from the template by injecting the list of
+	## available animation state names. The template placeholder #ANIMATION_STATES#
+	## is replaced with the actual state list including blend spaces.
 	var template_path = "res://addons/auto_animtree_plugin/PlayerController-AnimTree.gd"
 	var script_path = "res://AnimTreeList/PlayerController.gd"
 	
@@ -456,13 +550,15 @@ func _create_player_controller_script(anims: Dictionary, anim_player_name: Strin
 		push_error("Failed to create/update player controller script: " + script_path)
 
 func _has_directional_animations(anims: Dictionary, directions: Array) -> bool:
+	## Check if at least one of the named animations exists in the selection.
 	for anim in directions:
 		if anim in anims:
 			return true
 	return false
 
 func _force_filesystem_refresh():
-	"""Force filesystem to refresh and show new files immediately"""
+	## Refresh the editor filesystem so newly created/updated files appear
+	## in the FileSystem dock immediately.
 	if editor_interface:
 		# Refresh the filesystem to make new files visible
 		var filesystem = editor_interface.get_resource_filesystem()
@@ -473,7 +569,8 @@ func _force_filesystem_refresh():
 		print("Filesystem refreshed - new files should be visible!")
 
 func _force_editor_refresh(scene_path: String):
-	"""Force editor to refresh and show changes immediately"""
+	## Force the editor to reload the scene if it's currently open and
+	## refresh the filesystem to show changes.
 	if not editor_interface:
 		return
 	
@@ -490,7 +587,7 @@ func _force_editor_refresh(scene_path: String):
 	call_deferred("_deferred_filesystem_refresh")
 
 func _deferred_filesystem_refresh():
-	"""Deferred filesystem refresh to ensure changes are visible"""
+	## One‑frame deferred filesystem scan to catch any pending changes.
 	if editor_interface:
 		editor_interface.get_resource_filesystem().scan_sources()
 		print("Editor refreshed - changes should be visible now!")

@@ -1,7 +1,7 @@
 @tool
 extends EditorPlugin
 
-var dialog: AcceptDialog
+var dialog: Window
 var main_panel: Panel  # Add reference to main panel for animations
 var create_button: Button
 var scene_file_edit: OptionButton
@@ -191,7 +191,7 @@ func _on_create_button_pressed():
 	# Animate dialog popup using the main panel instead of the dialog
 	main_panel.modulate.a = 0.0
 	main_panel.scale = Vector2(0.8, 0.8)
-	dialog.popup_centered(Vector2i(750, 950))
+	dialog.popup_centered(Vector2i(700, 720))
 	
 	# Create smooth entrance animation
 	if animation_tween:
@@ -205,14 +205,13 @@ func _create_dialog():
 	if dialog and is_instance_valid(dialog):
 		dialog.queue_free()
 	
-	# Use AcceptDialog instead of Window to get Godot's default window bar
-	dialog = AcceptDialog.new()
+	# Use Window so the user can resize it
+	dialog = Window.new()
 	dialog.title = "🎭 Auto AnimationTree Creator"
-	dialog.size = Vector2i(800, 1000)  # Increased size
-	dialog.min_size = Vector2i(750, 900)
+	dialog.size = Vector2i(750, 750)
+	dialog.min_size = Vector2i(600, 400)
 	dialog.theme = theme_resource
 	dialog.close_requested.connect(_on_dialog_close)
-	dialog.confirmed.connect(_on_dialog_close)
 	
 	# Main container with custom panel - store reference for animations
 	main_panel = Panel.new()
@@ -250,12 +249,24 @@ func _create_dialog():
 	subtitle_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75, 1.0))
 	header_container.add_child(subtitle_label)
 	
+	# Main scrollable area - wraps everything between header and create button
+	scroll_container = ScrollContainer.new()
+	scroll_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_container.theme = theme_resource
+	main_vbox.add_child(scroll_container)
+	
+	var scroll_content = VBoxContainer.new()
+	scroll_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_content.add_theme_constant_override("separation", 12)
+	scroll_container.add_child(scroll_content)
+	
 	# Animated separator
 	var separator1 = _create_animated_separator()
-	main_vbox.add_child(separator1)
+	scroll_content.add_child(separator1)
 	
 	# Scene selection with animated header
-	var scene_group = _create_animated_section("🎬 Scene Selection", main_vbox)
+	var scene_group = _create_animated_section("🎬 Scene Selection", scroll_content)
 	
 	var scene_content = VBoxContainer.new()
 	scene_content.add_theme_constant_override("separation", 10)
@@ -303,10 +314,10 @@ func _create_dialog():
 	
 	# Animated separator
 	var separator2 = _create_animated_separator()
-	main_vbox.add_child(separator2)
+	scroll_content.add_child(separator2)
 	
 	# Auto Bind Section
-	var auto_bind_group = _create_animated_section("⌨️ Input Actions", main_vbox)
+	var auto_bind_group = _create_animated_section("⌨️ Input Actions", scroll_content)
 	
 	auto_bind_btn = Button.new()
 	auto_bind_btn.text = "🚀 Auto Generate Input Actions"
@@ -324,31 +335,17 @@ func _create_dialog():
 	
 	# Animated separator
 	var separator3 = _create_animated_separator()
-	main_vbox.add_child(separator3)
+	scroll_content.add_child(separator3)
 	
 	# Animation Selection Section
-	var anim_section = _create_animated_section("🎨 Animation Selection", main_vbox)
+	var anim_section = _create_animated_section("🎨 Animation Selection", scroll_content)
 	
-	# Scroll container for animations - FIXED SCROLL CONTAINER
-	scroll_container = ScrollContainer.new()
-	scroll_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll_container.custom_minimum_size.y = 350  # Fixed height
-	scroll_container.theme = theme_resource
-	anim_section.add_child(scroll_container)
-	
-	# Container for scroll content
-	var scroll_content = VBoxContainer.new()
-	scroll_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll_content.add_theme_constant_override("separation", 10)
-	scroll_container.add_child(scroll_content)
-	
-	# Create animation categories with animations
-	_create_animation_categories(scroll_content)
+	# Create animation categories with animations (direct children of anim_section)
+	_create_animation_categories(anim_section)
 	
 	# Final separator
 	var separator4 = _create_animated_separator()
-	main_vbox.add_child(separator4)
+	scroll_content.add_child(separator4)
 	
 	# Create button with special styling
 	create_btn = Button.new()
